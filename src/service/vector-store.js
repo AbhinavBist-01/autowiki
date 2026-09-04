@@ -8,8 +8,32 @@ const embeddings = new OpenAIEmbeddings({
 
 const pinecone = new Pinecone();
 
-function getIndex() {
-  return pinecone.Index(process.env.PINECONE_INDEX_NAME || "autowiki");
+function wrapIndex(index) {
+  return new Proxy(index, {
+    get(target, prop, receiver) {
+      if (prop === "namespace") {
+        return function (ns) {
+          const namespaced = target.namespace(ns);
+          return wrapIndex(namespaced);
+        };
+      }
+      if (prop === "upsert") {
+        return function (options, ...rest) {
+          if (Array.isArray(options)) {
+            return target.upsert({ records: options }, ...rest);
+          }
+          return target.upsert(options, ...rest);
+        };
+      }
+      const val = Reflect.get(target, prop, receiver);
+      return typeof val === "function" ? val.bind(target) : val;
+    },
+  });
+}
+
+export function getIndex() {
+  const index = pinecone.Index(process.env.PINECONE_INDEX_NAME || "autowiki");
+  return wrapIndex(index);
 }
 
 export async function saveChunks(repo, docs) {
@@ -24,4 +48,16 @@ export async function saveChunks(repo, docs) {
     pineconeIndex: getIndex(),
     namespace,
   });
+}
+
+export async function search(repo, query, topK = 5) {
+  const namespace = repo.replace("/", "-");
+  const queryEmbedding = await embeddings.embedQuery(query);
+  const index = getIndex();
+  const queryResponse = await index.namespace(namespace).query({
+    vector: queryEmbedding,
+    topK,
+    includeMetadata: true,
+  });
+  return queryResponse;
 }
