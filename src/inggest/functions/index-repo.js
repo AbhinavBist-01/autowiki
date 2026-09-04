@@ -6,10 +6,22 @@ import { saveChunks } from "../../service/vector-store.js";
 export const indexRepo = inngest.createFunction(
   { id: "index-repo", triggers: [{ event: "repo/index.js.requested" }] },
   async ({ event, step }) => {
-    const { githubToken, owner, repo } = event.data;
+    const githubToken = event.data.githubToken || process.env.GITHUB_TOKEN;
+    let owner = event.data.owner;
+    let repo = event.data.repo;
+
+    if (!repo && event.data.repoKey) {
+      const parts = event.data.repoKey.split("/");
+      owner = owner || parts[0];
+      repo = parts[1];
+    }
+
+    if (!repo) {
+      throw new Error(`Invalid event data: missing repository name. Received: ${JSON.stringify(event.data)}`);
+    }
 
     const repoName = repo.replace(/\.git$/, "");
-    const repoKey = `${owner}/${repoName}`;
+    const repoKey = event.data.repoKey || `${owner}/${repoName}`;
 
     const files = await step.run("fetch-repo-files", async () => {
       return fetchRepoFiles(githubToken, owner, repoName);
@@ -19,9 +31,11 @@ export const indexRepo = inngest.createFunction(
       return chunkFiles(files, repoKey);
     });
 
-    await step.run("save-to-pinecone", async () => {
-      return saveChunks(repoKey, documents);
-    });
+    if (documents.length > 0) {
+      await step.run("save-to-pinecone", async () => {
+        return saveChunks(repoKey, documents);
+      });
+    }
 
     return {
       repo: repoKey,

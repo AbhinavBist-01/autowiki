@@ -13,6 +13,11 @@ function getIndex() {
 }
 
 export async function saveChunks(repo, docs) {
+  if (!docs || docs.length === 0) {
+    console.warn(`No documents to save to Pinecone for ${repo}`);
+    return;
+  }
+
   const namespace = repo.replace("/", "-");
 
   await PineconeStore.fromDocuments(docs, embeddings, {

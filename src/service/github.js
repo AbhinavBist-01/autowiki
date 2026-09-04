@@ -74,9 +74,7 @@ export function parseRepo(input) {
 }
 
 export async function fetchRepoFiles(token, owner, repo) {
-  const octokit = new Octokit({
-    auth: token,
-  });
+  const octokit = new Octokit(token ? { auth: token } : {});
 
   let repoInfo;
   try {
@@ -85,6 +83,11 @@ export async function fetchRepoFiles(token, owner, repo) {
   } catch (err) {
     if (err.status === 404) {
       throw new Error(`Github could not find ${owner}/${repo}`);
+    }
+    if (err.status === 401) {
+      throw new Error(
+        `Github authentication failed (Bad credentials) for ${owner}/${repo}. Check your GITHUB_TOKEN.`
+      );
     }
     throw err;
   }
