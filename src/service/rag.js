@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { search } from "./vectorStore.js";
+import { search } from "./vector-store.js";
 
 function toText(content) {
   if (typeof content === "string") return content;

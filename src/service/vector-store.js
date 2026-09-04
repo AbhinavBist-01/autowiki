@@ -59,5 +59,10 @@ export async function search(repo, query, topK = 5) {
     topK,
     includeMetadata: true,
   });
-  return queryResponse;
+
+  return (queryResponse.matches || []).map((match) => ({
+    pageContent: match.metadata?.text || "",
+    metadata: match.metadata || {},
+    score: match.score,
+  }));
 }
